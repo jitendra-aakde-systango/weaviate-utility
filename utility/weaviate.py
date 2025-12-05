@@ -100,46 +100,36 @@ class Weaviate:
             error_type = type(e).__name__
             error_traceback = traceback.format_exc()
             
-            st.error(f"❌ **Connection Failed:** {error_type}: {error_msg}")
+            # Display actual error prominently
+            st.error(f"""
+            ❌ **Connection Failed!**
+            
+            **Error Type:** {error_type}
+            
+            **Error Message:** {error_msg}
+            """)
+            
+            # Show full traceback prominently
+            st.markdown("### 📋 Full Error Traceback (Actual Error Details):")
+            st.code(error_traceback, language="python")
             
             # Check if using private IP from cloud
             if self.weaviate_host.startswith(('192.168.', '10.', '172.')):
-                st.warning("""
-                ⚠️ **Private IP Address Detected!**
+                st.warning(f"""
+                ⚠️ **Private IP Detected:** `{self.weaviate_host}`
                 
-                You're using a private IP address (`{}`). If you're deploying this app on **Streamlit Cloud**, 
-                it **cannot reach private IP addresses** (192.168.x.x, 10.x.x, 172.16-31.x.x).
-                
-                **Solutions:**
-                - If testing locally: Make sure you're running this app on the same network
-                - If deploying to Streamlit Cloud: Use a **public IP** or **public domain name**
-                - For AWS: Use the EC2 public DNS like `ec2-xx-xx-xx-xx.compute.amazonaws.com`
-                """.format(self.weaviate_host))
-            
-            # Provide helpful debugging information
-            with st.expander("🔍 Full Error Details"):
-                st.write(f"**Host:** {self.weaviate_host}")
-                st.write(f"**HTTP Port:** {port_int if 'port_int' in locals() else self.weaviate_port}")
-                st.write(f"**GRPC Port:** {grpc_port if 'grpc_port' in locals() else 'Unknown'}")
-                st.write(f"**Using secure connection:** {use_secure if 'use_secure' in locals() else 'Unknown'}")
-                st.write(f"**Error type:** {error_type}")
-                st.write(f"**Error message:** {error_msg}")
-                
-                st.markdown("**Full Traceback:**")
-                st.code(error_traceback, language="python")
-                
-                st.markdown("""
-                **Common issues:**
-                - ❌ Private IP address (192.168.x.x, 10.x.x, 172.x.x) not accessible from Streamlit Cloud
-                - ❌ Firewall blocking connection
-                - ❌ GRPC port (typically HTTP_PORT + 10000) might be blocked
-                - ❌ Weaviate instance not running
-                - ❌ API key is invalid
-                - ❌ Network timeout
-                - ❌ SSL/TLS certificate issues for secure connections
-                
-                **Tip:** If using cloud Weaviate, make sure both HTTP and GRPC ports are accessible from public internet
+                Private IPs (192.168.x.x, 10.x.x, 172.x.x) are NOT accessible from Streamlit Cloud.
+                Use a public IP or domain instead.
                 """)
+            
+            # Connection details for debugging
+            st.info(f"""
+            **Connection Attempted:**
+            - Host: `{self.weaviate_host}`
+            - HTTP Port: `{port_int if 'port_int' in locals() else self.weaviate_port}`
+            - GRPC Port: `{grpc_port if 'grpc_port' in locals() else 'Unknown'}`
+            - Secure: `{use_secure if 'use_secure' in locals() else 'Unknown'}`
+            """)
             
             return False
 
