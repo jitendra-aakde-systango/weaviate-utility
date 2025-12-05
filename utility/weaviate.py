@@ -43,9 +43,10 @@ class Weaviate:
                 st.info("ℹ️ **Step 2/6:** No LLM provider configured (using keyword search)")
             
             # Auto-detect if secure connection is needed (for cloud deployments)
-            # Use secure if host is not localhost/127.0.0.1 or if port is 443/8443
+            # Only use secure for standard HTTPS ports or cloud domains
             is_cloud_deployment = self.weaviate_host not in ['localhost', '127.0.0.1']
-            use_secure = is_cloud_deployment or str(self.weaviate_port) in ['443', '8443']
+            # Use secure only if port is explicitly 443/8443 
+            use_secure = str(self.weaviate_port) in ['443', '8443']
             
             # Convert port to int
             port_int = int(self.weaviate_port) if self.weaviate_port else (443 if use_secure else 8080)
@@ -79,8 +80,7 @@ class Weaviate:
                 grpc_secure=use_secure,
                 auth_credentials=Auth.api_key(self.weaviate_api_key),
                 skip_init_checks=False,  # Enable checks for better error messages
-                headers=provider_headers,
-                timeout=(10, 60)  # Connection timeout: (connect, read) in seconds
+                headers=provider_headers
             )
             
             st.success("✅ **Step 5/6:** Weaviate client created successfully!")
