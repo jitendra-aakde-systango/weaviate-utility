@@ -5,7 +5,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 import json
 
-from constants import ADDITIONALS, FUSION_TYPES, LIMIT_MAX_VALUE, LIMIT_DEFAULT_VALUE, LIMIT_MIN_VALUE
+from constants import ADDITIONALS, FUSION_TYPES, LIMIT_MAX_VALUE, LIMIT_DEFAULT_VALUE, LIMIT_MIN_VALUE, SEARCH_TYPES, DEFAULT_SEARCH_TYPE
 from utility.base import convert_response_to_df
 from utility.weaviate import Weaviate
 
@@ -38,13 +38,39 @@ def home():
     )
     weaviate.connect()
 
-    # Header with beautiful styling
-    # st.markdown("""
-    # <div class="header-container">
-    #     <div class="header-title">🔍 Weaviate Data Explorer</div>
-    #     <div class="header-subtitle">Discover insights from your vector database</div>
-    # </div>
-    # """, unsafe_allow_html=True)
+    # Header with search type indicator
+    current_search_type = st.session_state.get("search_type", DEFAULT_SEARCH_TYPE)
+    llm_provider = st.session_state.get("llm_provider")
+    
+    # Create header with search mode and security indicator
+    header_html = f"""
+    <div style="background: linear-gradient(135deg, #2d2d2d 0%, #404040 100%); 
+         padding: 1rem 1.5rem; border-radius: 10px; border: 1px solid #555555; margin-bottom: 1rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+            <div>
+                <span style="font-size: 1.2rem; font-weight: 600; color: #ffffff;">🔍 Weaviate Data Explorer</span>
+            </div>
+            <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                <div style="background: rgba(76, 175, 80, 0.2); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #4CAF50;">
+                    <span style="color: #4CAF50; font-weight: 600;">Search: {SEARCH_TYPES[current_search_type]['label']}</span>
+                </div>
+    """
+    
+    # Add security badge if LLM is being used
+    if llm_provider:
+        header_html += f"""
+                <div style="background: rgba(33, 150, 243, 0.2); padding: 0.5rem 1rem; border-radius: 8px; border: 1px solid #2196F3;">
+                    <span style="color: #2196F3; font-weight: 600;">🔒 {llm_provider} API (Session Only)</span>
+                </div>
+        """
+    
+    header_html += """
+            </div>
+        </div>
+    </div>
+    """
+    
+    st.markdown(header_html, unsafe_allow_html=True)
 
     # Helper functions
     def handle_class_selection():
@@ -88,6 +114,7 @@ def home():
                 fusion=st.session_state["fusion"],
                 query=st.session_state["prompt"],
                 limit=st.session_state["limit"],
+                search_type=st.session_state.get("search_type", DEFAULT_SEARCH_TYPE)
             )
             
         end_time = datetime.now()
@@ -195,27 +222,40 @@ def home():
                         help="Select additional metadata to include"
                     )
                     
-                    col1, col2 = st.columns(2)
-                    with col1:
-                        alpha = st.slider(
-                            label="🎯 Alpha (Hybrid Balance)",
-                            min_value=0.0,
-                            max_value=1.0,
-                            value=0.7,
-                            step=0.01,
-                            key="alpha",
-                            disabled=st.session_state["properties_disabled"],
-                            help="Balance between keyword (0) and vector (1) search"
-                        )
+                    # Get current search type
+                    current_search_type = st.session_state.get("search_type", DEFAULT_SEARCH_TYPE)
                     
-                    with col2:
-                        fusion = st.selectbox(
-                            "🔀 Fusion Type",
-                            options=FUSION_TYPES,
-                            disabled=st.session_state["properties_disabled"],
-                            key="fusion",
-                            help="Method for combining search results"
-                        )
+                    # Only show alpha and fusion for hybrid search
+                    if current_search_type == "hybrid":
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            alpha = st.slider(
+                                label="🎯 Alpha (Hybrid Balance)",
+                                min_value=0.0,
+                                max_value=1.0,
+                                value=0.7,
+                                step=0.01,
+                                key="alpha",
+                                disabled=st.session_state["properties_disabled"],
+                                help="Balance between keyword (0) and vector (1) search"
+                            )
+                        
+                        with col2:
+                            fusion = st.selectbox(
+                                "🔀 Fusion Type",
+                                options=FUSION_TYPES,
+                                disabled=st.session_state["properties_disabled"],
+                                key="fusion",
+                                help="Method for combining search results"
+                            )
+                    else:
+                        # For non-hybrid searches, set defaults and show info
+                        st.info(f"ℹ️ Using {SEARCH_TYPES[current_search_type]['label']} - Alpha and fusion settings not applicable")
+                        # Set default values in session state if not present
+                        if "alpha" not in st.session_state:
+                            st.session_state["alpha"] = 0.7
+                        if "fusion" not in st.session_state:
+                            st.session_state["fusion"] = "ranked"
                     
                     limit = st.number_input(
                         "📊 Result Limit",
