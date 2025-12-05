@@ -33,8 +33,14 @@ class Weaviate:
     
     def connect(self):
         try:
+            st.info("🔄 **Step 1/6:** Initializing connection...")
+            
             # Get the appropriate headers based on LLM provider
             provider_headers = self._get_provider_header()
+            if provider_headers:
+                st.success(f"✅ **Step 2/6:** LLM provider headers configured ({list(provider_headers.keys())[0]})")
+            else:
+                st.info("ℹ️ **Step 2/6:** No LLM provider configured (using keyword search)")
             
             # Auto-detect if secure connection is needed (for cloud deployments)
             # Use secure if host is not localhost/127.0.0.1 or if port is 443/8443
@@ -44,36 +50,59 @@ class Weaviate:
             # Convert port to int
             port_int = int(self.weaviate_port) if self.weaviate_port else (443 if use_secure else 8080)
             
-            st.info(f"🔄 Connecting to {self.weaviate_host}:{port_int} ({'secure' if use_secure else 'insecure'})...")
+            # GRPC configuration - use same host and calculate GRPC port
+            # For cloud: typically HTTP + 10000 or use 50051
+            grpc_host = self.weaviate_host
+            if GRPC_PORT:
+                grpc_port = int(GRPC_PORT)
+            else:
+                # Default GRPC port calculation
+                grpc_port = 50051 if not is_cloud_deployment else (port_int + 10000 if port_int < 40000 else 50051)
+            
+            st.info(f"""
+            ℹ️ **Step 3/6:** Connection parameters calculated:
+            - **Host:** {self.weaviate_host}
+            - **HTTP Port:** {port_int}
+            - **GRPC Port:** {grpc_port}
+            - **Protocol:** {'HTTPS/WSS (secure)' if use_secure else 'HTTP/WS (insecure)'}
+            - **Mode:** {'Cloud Deployment' if is_cloud_deployment else 'Local Deployment'}
+            """)
+            
+            st.info("🔄 **Step 4/6:** Creating Weaviate client...")
             
             self.client = weaviate.connect_to_custom(
                 http_host=self.weaviate_host,
                 http_port=port_int,
                 http_secure=use_secure,
-                grpc_host=GRPC_HOST if GRPC_HOST else self.weaviate_host,  
-                grpc_port=int(GRPC_PORT) if GRPC_PORT else 50051,  
+                grpc_host=grpc_host,  
+                grpc_port=grpc_port,  
                 grpc_secure=use_secure,
                 auth_credentials=Auth.api_key(self.weaviate_api_key),
                 skip_init_checks=False,  # Enable checks for better error messages
-                headers=provider_headers
+                headers=provider_headers,
+                timeout=(10, 60)  # Connection timeout: (connect, read) in seconds
             )
+            
+            st.success("✅ **Step 5/6:** Weaviate client created successfully!")
+            st.info("🔄 **Step 6/6:** Testing connection readiness...")
             
             # Test the connection
             if self.client.is_ready():
-                st.success("✅ Connection established successfully!")
+                st.success("✅ **Connection Successful!** All steps completed. Weaviate is ready to use.")
                 return True
             else:
-                st.error("❌ Weaviate client created but not ready. Check if your instance is running.")
+                st.error("❌ **Step 6/6 Failed:** Weaviate client created but not ready. Instance may not be running or accessible.")
                 return False
                 
         except Exception as e:
             error_msg = str(e)
-            st.error(f"❌ Connection error: {error_msg}")
+            st.error(f"❌ **Connection Failed:** {error_msg}")
             
             # Provide helpful debugging information
             with st.expander("🔍 Debugging Information"):
                 st.write(f"**Host:** {self.weaviate_host}")
-                st.write(f"**Port:** {self.weaviate_port}")
+                st.write(f"**HTTP Port:** {port_int if 'port_int' in locals() else self.weaviate_port}")
+                st.write(f"**GRPC Port:** {grpc_port if 'grpc_port' in locals() else 'Unknown'}")
                 st.write(f"**Using secure connection:** {use_secure if 'use_secure' in locals() else 'Unknown'}")
                 st.write(f"**Error type:** {type(e).__name__}")
                 st.write(f"**Full error:** {error_msg}")
@@ -81,11 +110,13 @@ class Weaviate:
                 st.markdown("""
                 **Common issues:**
                 - ❌ Firewall blocking connection from Streamlit Cloud
-                - ❌ Incorrect host or port
+                - ❌ GRPC port (typically HTTP_PORT + 10000) might be blocked
                 - ❌ Weaviate instance not running
                 - ❌ API key is invalid
-                - ❌ Security group rules not allowing external access (AWS)
-                - ❌ Need to use HTTPS instead of HTTP for cloud deployments
+                - ❌ Network timeout (cloud deployments need longer timeouts)
+                - ❌ SSL/TLS certificate issues for secure connections
+                
+                **Tip:** If using cloud Weaviate, make sure both HTTP and GRPC ports are accessible
                 """)
             
             return False

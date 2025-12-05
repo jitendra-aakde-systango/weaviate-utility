@@ -1,0 +1,13 @@
+# Streamlit Cloud Configuration
+# This file ensures the app runs correctly on Streamlit Cloud
+
+[server]
+headless = true
+port = 8501
+
+[browser]
+gatherUsageStats = false
+
+[client]
+showErrorDetails = true
+toolbarMode = "minimal"
